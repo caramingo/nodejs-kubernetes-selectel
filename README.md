@@ -52,47 +52,36 @@ Ansible выполняет:
 ---
 
 ## Архитектура
-nternet
-│
-│ HTTPS
-▼
-k8host.ru
-│
-▼
-Master Node (Kubernetes control-plane)
-│
-├── Worker Node
-│
-▼
-Node.js Application (Pod)
+Internet → k8host.ru → Master Node → Worker Node → Node.js Application (Pod)
 
 
 ---
 
 ## Структура проекта
 
+```
 project-root
 │
 ├── terraform/
-│ ├── servers_with_one_network
-│ ├── modules
-│ └── readme-terraform.txt
+│   ├── servers_with_one_network
+│   ├── modules
+│   └── readme-terraform.txt
 │
 ├── ansible/
-│ ├── roles/
-│ ├── hosts.ini
-│ ├── all.yml
-│ ├── setup_deb12_k8s.yml
-│ └── readme-ansible.txt
+│   ├── roles/
+│   ├── hosts.ini
+│   ├── all.yml
+│   ├── setup_deb12_k8s.yml
+│   └── readme-ansible.txt
 │
 ├── k8s-manifest/
-│ ├── configmap.yaml
-│ ├── deployment.yaml
-│ ├── service.yaml
-│ └── readme-k8s.txt
+│   ├── configmap.yaml
+│   ├── deployment.yaml
+│   ├── service.yaml
+│   └── readme-k8s.txt
 │
 └── README.md
-
+```
 
 ---
 
