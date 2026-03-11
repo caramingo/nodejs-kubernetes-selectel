@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-node-app
+  namespace: nodeapp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-node-app
+  template:
+    metadata:
+      labels:
+        app: auth-node-app
+    spec:
+      # Добавьте этот блок
+      nodeSelector:
+        node-role.kubernetes.io/worker: ""
+    spec:
+      containers:
+        - name: app
+          image: caramingo/auth_node_app:1.6.5.33
+          ports:
+            - containerPort: 3000
+          readinessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "500m"
+              memory: "256Mi"
+
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 30500
+          volumeMounts:
+            - name: nginx-conf
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: 30500
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket:
+              port: 30500
+            initialDelaySeconds: 10
+            periodSeconds: 10
+
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: auth-nginx-conf
+        - name: tls
+          secret:
+            secretName: k8host-tls
+

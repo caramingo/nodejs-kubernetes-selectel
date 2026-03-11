@@ -1,0 +1,176 @@
+---
+- name: Setup Debian 12 firewall and user (safe & re-runnable)
+  hosts: k8s
+  become: true
+  serial: 1
+
+  vars:
+    test_user: username
+    test_password_hash: "$6$rinNq.xpQ7FxaBEz$tL7mxoQG2of3Itdugj5A/G3vRUJSgdk/MmqRUDskU/OQgLpSP.TPNjgYlN8ERRyOz9cbYPgKleHUmhFWs2W6k/"
+#    net_iface: enp0s3
+    net_iface: eth0
+    allowed_ip: 176.110.199.201
+
+  tasks:
+    # ---------------- PACKAGES ----------------
+
+    - name: Remove nftables
+      apt:
+        name: nftables
+        state: absent
+        purge: true
+        autoremove: true
+        update_cache: true
+
+    - name: Install required packages
+      apt:
+        name:
+          - iptables
+          - htop
+          - mc
+          - sudo
+          - openssh-server
+        state: present
+
+    # ---------------- USER ----------------
+
+    - name: Create user test
+      user:
+        name: "{{ test_user }}"
+        password: "{{ test_password_hash }}"
+        shell: /bin/bash
+        create_home: true
+        state: present
+
+    - name: Allow test user full sudo without password
+      copy:
+        dest: /etc/sudoers.d/test
+        content: "test ALL=(ALL) NOPASSWD:ALL\n"
+        owner: root
+        group: root
+        mode: "0440"
+        validate: "visudo -cf %s"
+
+    # ---------------- IPTABLES (SAFE & REPEATABLE) ----------------
+
+    # 0. Временно открыть INPUT
+    - name: Temporarily set INPUT policy to ACCEPT
+      iptables:
+        chain: INPUT
+        policy: ACCEPT
+
+    # 1. Очистить правила
+    - name: Flush iptables rules
+      command: iptables -F
+      changed_when: false
+
+    # 2. Loopback (обязательно)
+    - name: Allow loopback
+      iptables:
+        chain: INPUT
+        in_interface: lo
+        jump: ACCEPT
+
+    # 3. Established / Related (через conntrack)
+    - name: Allow established connections
+      iptables:
+        chain: INPUT
+        match: conntrack
+        ctstate: RELATED,ESTABLISHED
+        jump: ACCEPT
+
+    # 4. ICMP
+    - name: Allow ICMP
+      iptables:
+        chain: INPUT
+        protocol: icmp
+        jump: ACCEPT
+
+    # 5. SSH
+    - name: Allow SSH
+      iptables:
+        chain: INPUT
+        protocol: tcp
+        in_interface: "{{ net_iface }}"
+        destination_port: 22
+        jump: ACCEPT
+
+    - name: Allow http
+      iptables:
+        chain: INPUT
+        protocol: tcp
+        in_interface: "{{ net_iface }}"
+        destination_port: 80
+        jump: ACCEPT
+
+    - name: Allow https
+      iptables:
+        chain: INPUT
+        protocol: tcp
+        in_interface: "{{ net_iface }}"
+        destination_port: 443
+        jump: ACCEPT
+
+    # 6. Kubernetes API
+    - name: Allow kube-apiserver
+      iptables:
+        chain: INPUT
+        protocol: tcp
+        destination_port: 6443
+        jump: ACCEPT
+
+    # 7. Kubelet
+    - name: Allow kubelet
+      iptables:
+        chain: INPUT
+        protocol: tcp
+        destination_port: 10250
+        jump: ACCEPT
+
+    # 8. DNS (если нода сама обслуживает DNS)
+#    - name: Allow DNS UDP
+#      iptables:
+#        chain: INPUT
+#        protocol: udp
+#        destination_port: 53
+#         jump: ACCEPT
+
+    # 9. Flannel VXLAN
+    - name: Allow flannel VXLAN
+      iptables:
+        chain: INPUT
+        protocol: udp
+        destination_port: 8472
+        jump: ACCEPT
+
+    # 10. Pod CIDR (flannel)
+    - name: Allow pod network
+      iptables:
+        chain: INPUT
+        source: 10.244.0.0/16
+        jump: ACCEPT
+
+    # 11. Service CIDR (ClusterIP) ← КРИТИЧНО ДЛЯ COREDNS
+    - name: Allow service network
+      iptables:
+        chain: INPUT
+        source: 10.96.0.0/12
+        jump: ACCEPT
+
+    # 12. Trusted IP
+    - name: Allow all traffic from trusted IP
+      iptables:
+        chain: INPUT
+        source: "{{ allowed_ip }}"
+        jump: ACCEPT
+
+    # 13. DROP по умолчанию
+    - name: Set default INPUT policy to DROP
+      iptables:
+        chain: INPUT
+        policy: DROP
+
+
+
+# gen normal password for user username 
+#openssl passwd -6 123

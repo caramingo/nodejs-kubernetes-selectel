@@ -1,0 +1,146 @@
+---
+# tasks file for debian12-k8s-install
+
+- name: ставим дополнительные пакеты
+  apt:
+    name: 
+      -  curl 
+      -  apt-transport-https
+      -  ca-certificates 
+      -  gnupg
+      -  conntrack
+      -  ethtool
+    update_cache: yes 
+
+- name: создаем директорую для клдючей
+  ansible.builtin.file:
+    path: /etc/apt/keyrings 
+    state: directory
+    recurse: yes    
+ 
+- name: добавляем ключ
+  ansible.builtin.get_url:
+    url: https://download.docker.com/linux/debian/gpg
+    dest: /etc/apt/keyrings/docker.asc
+
+- name: меняем права
+  file: dest=/etc/apt/keyrings/docker.asc mode=a+r
+
+- name: добавояем репу 
+  shell: 
+    cmd: echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian  $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+- name: ставим containerd
+  apt:
+    name: 
+      -  containerd.io
+    update_cache: yes 
+
+- name: создаем директорую для containerd
+  ansible.builtin.file:
+    path: /etc/containerd 
+    state: directory
+    recurse: yes
+
+- name: создаем конфиг
+  shell: 
+    cmd: containerd config default | tee /etc/containerd/config.toml
+
+
+- name: включаем SystemdCgroup в конфиг  
+  replace:
+    path: /etc/containerd/config.toml
+    regexp: 'SystemdCgroup = false'
+    replace: 'SystemdCgroup = true'
+
+- name: перезапускаем containerd
+  systemd:
+      name: containerd
+      state: restarted
+
+- name: добавяем ключ для k8s
+  shell:  curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  args:
+    creates: "/etc/apt/keyrings/kubernetes-apt-keyring.gpg"
+
+- name: добавляем репу для k8s 
+  shell: 
+    cmd: echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.31/deb/ /' |  tee /etc/apt/sources.list.d/kubernetes.list
+
+- name: меняем пермишены для kubernetes.list
+  ansible.builtin.file:
+    path: /etc/apt/sources.list.d/kubernetes.list
+    mode: '0644'
+
+- name: ставим пакеты для k8s 
+  apt:
+    name: 
+      -  kubeadm 
+      -  kubelet 
+      -  kubectl 
+      -  kubernetes-cni
+    update_cache: yes  
+
+- name: отключаем своп
+  shell: 
+    cmd: swapoff -a
+
+- name: выключим своп в  /etc/fstab
+  replace:
+    path: /etc/fstab
+    regexp: '^(\s*)([^#\n]+\s+)(\w+\s+)swap(\s+.*)$'
+    replace: '#\1\2\3swap\4'     
+
+- name: добавим br_netfilter module
+  community.general.modprobe:
+    name: br_netfilter
+    state: present    
+
+- name: включим форвадинг пакетов
+  replace:
+    path: /etc/sysctl.conf
+    regexp: '#net.ipv4.ip_forward=1'
+    replace: 'net.ipv4.ip_forward=1'    
+
+- name: включим форвардинг сразу
+  shell: 
+    cmd: sysctl -w net.ipv4.ip_forward=1
+
+- name: смотрим кубер уже работает
+  stat:
+    path: "/etc/kubernetes/pki/ca.key"
+  register: kubeadm_ca
+
+- name: инициаоизируем кластер
+  shell: 
+    cmd: kubeadm init --pod-network-cidr=10.244.0.0/16  
+  when: not kubeadm_ca.stat.exists
+  run_once: yes  
+
+- name: Cсоздаем хомяка $HOME/.kube
+  ansible.builtin.file:
+    path: $HOME/.kube 
+    state: directory
+    recurse: yes    
+
+
+- name: копирем конфиг в  $home
+  shell: 
+    cmd: cp  /etc/kubernetes/admin.conf $HOME/.kube/config
+
+- name: меняем пермишены
+  file:
+    path: $HOME/.kube/config 
+    owner: "{{ ansible_user }}"
+    group: "{{ ansible_user }}"   
+
+- name: ставим Flannel in k8s
+  shell: 
+    cmd: kubectl apply -f https://raw.githubusercontent.com/flannel-io/flannel/v0.20.2/Documentation/kube-flannel.yml   
+
+- name: ну что поды запустились
+  command: 'kubectl get pods --all-namespaces'
+  register: command_output    
+
+- debug: 
+    var: command_output.stdout_lines     
