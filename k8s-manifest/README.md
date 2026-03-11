@@ -1,8 +1,8 @@
-# Подключение worker-ноды и запуск приложения в Kubernetes
+### Подключение worker-ноды и запуск приложения в Kubernetes
 
 ---
 
-# 1. Подключение worker-ноды к master-ноде
+### 1. Подключение worker-ноды к master-ноде
 
 После того как **master** и **worker** ноды подготовлены соответствующими плейбуками, необходимо подключить worker-ноду к master.
 
@@ -24,7 +24,7 @@ kubeadm join 192.168.0.182:6443 --token <TOKEN> --discovery-token-ca-cert-hash s
 
 ---
 
-# 2. Добавление роли worker-ноды
+### 2. Добавление роли worker-ноды
 
 На **master-ноде** проверим список нод:
 
@@ -66,11 +66,11 @@ k8s-server-iyhqr   Ready    worker          2m25s   v1.31.14
 
 ---
 
-# Настройка домена и TLS
+### Настройка домена и TLS
 
 ---
 
-# 3. Подготовка домена
+### 3. Подготовка домена
 
 Для проекта необходимо иметь домен.
 
@@ -84,7 +84,7 @@ k8host.ru
 
 ---
 
-## 3.1 Создание DNS-записи
+### 3.1 Создание DNS-записи
 
 В панели управления **Selectel**:
 
@@ -96,7 +96,7 @@ DNS → Доменные зоны
 
 ---
 
-# 4. Выпуск TLS-сертификата
+### 4. Выпуск TLS-сертификата
 
 В панели управления **Selectel** перейдите:
 
@@ -130,11 +130,11 @@ k8host.ru_cert.pem → fullchain.pem
 
 ---
 
-# Подготовка Kubernetes
+### Подготовка Kubernetes
 
 ---
 
-# 5. Создание namespace и TLS-секрета
+### 5. Создание namespace и TLS-секрета
 
 На **master-ноде** выполните:
 
@@ -152,7 +152,7 @@ kubectl -n nodeapp create secret tls k8host-tls \
 
 ---
 
-# 6. Создание Kubernetes-манифестов
+### 6. Создание Kubernetes-манифестов
 
 Создайте следующие файлы:
 
@@ -164,7 +164,7 @@ service.yaml
 
 ---
 
-# 7. Применение манифестов
+### 7. Применение манифестов
 
 Выполните команды:
 
@@ -176,11 +176,11 @@ kubectl apply -f service.yaml
 
 ---
 
-# Проверка работы
+### Проверка работы
 
 ---
 
-# 8. Проверка состояния
+### 8. Проверка состояния
 
 Проверьте состояние подов:
 
@@ -206,7 +206,7 @@ curl -vk https://k8host.ru:30500
 
 ---
 
-# Финал
+### Финал
 
 Если команды из пункта **8** выполняются без ошибок и `curl`-запросы возвращают корректный ответ, значит настройка выполнена успешно.
 
@@ -224,13 +224,13 @@ https://k8host.ru:30500
 
 ---
 
-# Если не работает или что-то пошло не так
+### Если не работает или что-то пошло не так
 
 Проверка по шагам.
 
 ---
 
-## Проверка Secret
+### Проверка Secret
 
 ```bash
 kubectl -n nodeapp get secret k8host-tls
@@ -249,7 +249,7 @@ tls.key
 
 ---
 
-## Проверка ConfigMap
+### Проверка ConfigMap
 
 ```bash
 kubectl -n nodeapp get configmap auth-nginx-conf -o yaml
@@ -257,7 +257,7 @@ kubectl -n nodeapp get configmap auth-nginx-conf -o yaml
 
 ---
 
-## Проверка Deployment
+### Проверка Deployment
 
 ```bash
 kubectl -n nodeapp get pods
@@ -283,7 +283,7 @@ kubectl -n nodeapp get pods -o wide
 
 ---
 
-## Проверка сервиса
+### Проверка сервиса
 
 ```bash
 kubectl -n nodeapp get svc
@@ -298,7 +298,7 @@ auth-node-app   NodePort   10.98.10.xxx   <none>        30500:30500/TCP   1m
 
 ---
 
-## Проверка подключения через NodePort
+### Проверка подключения через NodePort
 
 ```bash
 curl -vk https://<WHITE_IP_NODE>:30500
@@ -306,7 +306,7 @@ curl -vk https://<WHITE_IP_NODE>:30500
 
 ---
 
-## Проверка подключения через DNS
+### Проверка подключения через DNS
 
 ```bash
 curl -vk https://k8host.ru:30500
